@@ -14,5 +14,8 @@
 # Dependency directories (remove the comment below to include it)
 vendor/
 
-# VS Code's dir
-.vscode
+# VS Code's directories
+.vscode/
+
+# Goland config directories
+.idea/
