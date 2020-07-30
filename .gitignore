@@ -19,3 +19,8 @@ vendor/
 
 # Goland config directories
 .idea/
+
+./main/main*
+./main/faye*
+./main/*bin
+!./main/main.go
