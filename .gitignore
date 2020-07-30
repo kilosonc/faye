@@ -22,5 +22,4 @@ vendor/
 
 ./main/main*
 ./main/faye*
-./main/*bin
 !./main/main.go

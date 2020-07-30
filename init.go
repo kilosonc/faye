@@ -12,6 +12,7 @@ const (
 )
 
 var (
+	Thread                 = 8
 	BlockSize  int64       = 8 * MB
 	Headers    http.Header = make(http.Header)
 	RetryTimes             = 3

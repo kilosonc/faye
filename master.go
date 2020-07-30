@@ -4,16 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/closetool/faye/bar"
 )
 
 var (
 	ErrURLFormatError = errors.New("Url Format Wrong!")
 	ErrSendReqFailed  = errors.New("Send Request Failed!")
+)
+
+var (
+	br bar.Bar
 )
 
 //Master is job allocation node in main thread
@@ -41,7 +48,7 @@ type Master struct {
 }
 
 //NewMaster creates a new master node
-func NewMaster(rawURL string, t int, addr string, client *http.Client) (*Master, error) {
+func NewMaster(rawURL string, addr string, client *http.Client) (*Master, error) {
 	u, err := url.ParseRequestURI(rawURL)
 	if err != nil {
 		return nil, err
@@ -54,7 +61,7 @@ func NewMaster(rawURL string, t int, addr string, client *http.Client) (*Master,
 	//if err != nil {
 	//	return nil, err
 	//}
-	finishChan := make(chan *block, t)
+	finishChan := make(chan *block, Thread)
 	c := context.Background()
 	c, cancelFunc := context.WithCancel(c)
 	c = context.WithValue(c, "url", rawURL)
@@ -65,9 +72,9 @@ func NewMaster(rawURL string, t int, addr string, client *http.Client) (*Master,
 		cancelFunc: cancelFunc,
 		client:     client,
 		//length:     length,
-		dataChan:    make(chan *block, t),
+		dataChan:    make(chan *block, Thread),
 		finishChan:  finishChan,
-		taskRelease: make(chan *block, t),
+		taskRelease: make(chan *block, Thread),
 	}
 	//if !canMul {
 	//	return nil, nil
@@ -76,7 +83,7 @@ func NewMaster(rawURL string, t int, addr string, client *http.Client) (*Master,
 	if err != nil {
 		return nil, err
 	}
-	fws := make([]*Follower, t)
+	fws := make([]*Follower, Thread)
 	for i := range fws {
 		fws[i] = NewFollower(master.context, master.dataChan, master.taskRelease, client)
 	}
@@ -188,6 +195,7 @@ func (m *Master) init() error {
 		m.blockTable.Store(fmt.Sprintf("bytes= %d-%d", start, end), false)
 		m.blockCount++
 	}
+	br.NewOption(0, int64(m.blockCount))
 	return nil
 }
 
@@ -197,6 +205,7 @@ func (m *Master) handleFinished() {
 		b := <-m.finishChan
 		//log.Printf("block %s has completed\n", b)
 		finished++
+		br.Play(int64(finished))
 		m.blockTable.Store(b.String(), true)
 		if finished == m.blockCount {
 			//all tasks finished
@@ -208,19 +217,21 @@ func (m *Master) handleFinished() {
 }
 
 func (m *Master) close() {
+	br.Finish()
 	close(m.dataChan)
 	m.cancelFunc()
 }
 
 func (m *Master) Start() error {
-	//log.Printf("Master start\n")
+	br.Start()
+	log.Printf("Master start\n")
 	err := m.init()
 	if err != nil {
 		return err
 	}
-	//log.Printf("Init succeed")
+	log.Printf("Init succeed")
 	m.allocate()
-	//log.Printf("allocate complete")
+	log.Printf("allocate complete")
 	for _, f := range m.followers {
 		go f.start()
 	}

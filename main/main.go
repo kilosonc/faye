@@ -1,26 +1,86 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/closetool/faye"
 )
 
+const (
+	_1MB = 1 << 20
+)
+
+var (
+	ErrToFewArgs   = errors.New("There are at least two args!")
+	ErrCanGetWD    = errors.New("Can not get current dir!")
+	ErrParseCmdArg = errors.New("CMD args' format wrong!")
+)
+
 func main() {
-	faye.Headers.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36")
-	faye.Headers.Add("referer", "https://www.bilibili.com/video/BV18K4y1x7ZM?spm_id_from=333.851.b_7265706f7274466972737431.8")
-	faye.Headers.Add("origin", "https://www.bilibili.com")
-	//Headers.Add("range", "bytes=1211770-1211779")
-	rawURL := "https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/60/80/216148060/216148060_nb2-1-30280.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1595646519&gen=playurl&os=cosbv&oi=1857883589&trid=a7f20d4d6274410cafeb061a0e61b0b7u&platform=pc&upsig=4b1c0e31497691df2795c5970abfb2fb&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,platform&mid=6846013&orderid=0,3&logo=80000000"
-	thread := 8
-	//addr := `C:\Users\Administration\Desktop`
-	addr := `/mnt/c/Users/Administration/Desktop`
-	client := &http.Client{}
-	master, err := faye.NewMaster(rawURL, thread, addr, client)
-	if err != nil {
-		fmt.Println(err)
+	c := new(cmd)
+	if err := c.Parse(); err != nil {
+		log.Printf("An error occured: %v\n", err)
 		return
 	}
-	master.Start()
+	faye.Thread = *c.t
+	faye.BlockSize = _1MB * *c.b
+	faye.RetryTimes = *c.r
+	client := &http.Client{Timeout: time.Second * 10}
+	master, err := faye.NewMaster(c.url, *c.addr, client)
+	if err != nil {
+		log.Printf("An error occured: %v\n", err)
+		return
+	}
+	err = master.Start()
+	if err != nil {
+		log.Printf("An error occured: %v\n", err)
+		return
+	}
+}
+
+type cmd struct {
+	t    *int
+	b    *int64
+	h    *string
+	r    *int
+	addr *string
+	url  string
+}
+
+func (c *cmd) Parse() error {
+	if len(os.Args) < 2 {
+		flag.PrintDefaults()
+		return ErrToFewArgs
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return ErrCanGetWD
+	}
+	c.t = flag.Int("t", 8, " -t <num> threads number downloading file")
+	c.b = flag.Int64("b", 1, " -b <num> block size")
+	c.h = flag.String("h", "", " -h headers eg: -h Content-Length:1024;")
+	c.r = flag.Int("r", 3, " -r <num> retry times")
+	c.addr = flag.String("a", wd, " -a <string> wherever you want to save the file")
+	flag.Parse()
+	if flag.NArg() < 1 {
+		flag.PrintDefaults()
+		return ErrParseCmdArg
+	}
+	c.url = flag.Args()[0]
+	return nil
+}
+
+func usage() {
+	fmt.Printf("Usage: faye [OPTION] <URL>\n")
+	fmt.Printf(" -a, --addr <string> where save the file")
+	fmt.Printf(" -t, --thread <num> threads number that you want\n")
+	fmt.Printf(" -b, --block <num> block size\n")
+	fmt.Printf(" -h, --header <headers> headers in http request\n")
+	fmt.Printf(" -r --retry <num> retry times\n")
 }
