@@ -1,5 +1,7 @@
 # faye
 
+[![travis.ci](https://travis-ci.com/closetool/faye.svg?branch=master&status=unknown)](https://travis-ci.com/github/closetool/faye)
+
 faye 是一个使用纯golang语言编写的多线程下载器
 
 > 喜欢的可以给个star,pr
