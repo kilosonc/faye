@@ -17,7 +17,7 @@ vendor/
 # VS Code's directories
 .vscode/
 
-# Goland config directories
+# Goland directories
 .idea/
 
 ./main/main*
